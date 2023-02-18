@@ -1,0 +1,90 @@
+---
+title: "MATH 381 Project"
+author: "Tiffany Tian"
+date: "5/11/2022"
+output: html_document
+---
+
+
+```{r}
+# transcribe the student availabilities from seperate excel files to a matrix
+library(xlsx)
+library(dplyr)
+library(tidyverse)
+
+number_of_students = 31
+days_of_week = 5
+daily_time_slots = 28
+shift_length = 7
+weekly_time_slots = days_of_week * daily_time_slots
+daily_shifts = daily_time_slots
+weekly_shifts = days_of_week * daily_shifts
+
+A = data.frame(rep(NA, weekly_shifts))
+
+# Loop through each and every student barista's availability
+for (i in 1:number_of_students){
+  df <- read.xlsx("./Student Availabilities.xlsx", sheetIndex = i)[1:daily_time_slots,]
+  df = df[, 2:(days_of_week + 1)]
+  df = replace(df, !is.na(df), 0) # replace unavailable slots with 0
+  df = replace(df, is.na(df), 1) # replace available slots with 1
+  
+  # Create data frame to store a person's weekly availability
+  C = data.frame(rep(NA, daily_shifts))
+  
+  # Loop through each day of the week
+  for (l in 1:days_of_week){
+     # the first 6 shifts (start time being 4am-6:30am) are scheduled to be empty
+    B = c(rep(0, shift_length - 1))
+    
+     # Loop through the rest of the start times (7am-2:30pm) at the (j+7)th slot
+    for (j in (1:(daily_time_slots - (2*shift_length - 1)))){
+      availability = 0
+      for (k in 0:(shift_length - 1)){
+        availability = availability + as.numeric(df[j + k, l])
+      }
+      # if the person is available throughout the entire next 3.5 hours
+      if (availability == shift_length){
+        B[j + shift_length - 1] = 1 # they are available with start time at the (j+7)th slot
+      } else {
+        B[j + shift_length - 1] = 0
+      }
+    }
+    
+    # the last 6 shifts (start time being 3pm-5:30pm) are scheduled to be empty
+    for (j in 1:(shift_length - 1)){
+      B[daily_time_slots - (shift_length - 1) + j] = 0
+    }
+    # Store availability of that day in the lth column
+    C[l] = B
+  }
+  # Transform weekly availability data frame to a vector
+  A[i] = c(unlist(C))
+}
+
+colnames(A) = c(1:number_of_students)
+
+write.xlsx(A, "./Student_availability_matrix.xlsx")
+
+```
+
+```{r}
+# transcribe the full-time availabilities from seperate excel files to a dataframe
+D = data.frame(matrix(0, nrow = weekly_time_slots, ncol = 3))
+colnames(D) = c("HUB", "Suzzallo", "Pop.Health")
+
+number_of_fulltime = 8
+
+for (i in 1:number_of_fulltime) { #loop through each student barista
+  df_ft = read.xlsx("./Full-time Availabilities.xlsx", sheetIndex = i)[1:daily_time_slots,]
+  location = colnames(df_ft)[1]
+  df_ft = lag(df_ft, shift_length - 1) # shift everything down
+  df_ft = df_ft[, 2:(days_of_week + 1)]
+  df_ft = replace(df_ft, !is.na(df_ft), 1) # replace available slots with 1
+  df_ft = replace(df_ft, is.na(df_ft), 0) # replace unavailable slots with 0
+  D[location] = unlist(D[location],use.names=FALSE) + as.numeric(unlist(df_ft,use.names=FALSE))
+}
+
+write.xlsx(D, "./Fulltime_availability_df.xlsx")
+```
+
